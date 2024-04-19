@@ -21,7 +21,6 @@ class TestWebService(CommonWebService):
             [
                 "[webservice_backend.test_oauth2]",
                 "auth_type = oauth2",
-                "oauth2_flow = backend_application",
                 "oauth2_clientid = some_client_id",
                 "oauth2_client_secret = shh_secret",
                 f"oauth2_token_url = {cls.url}oauth2/token",
@@ -35,7 +34,6 @@ class TestWebService(CommonWebService):
                 "auth_type": "oauth2",
                 "protocol": "http",
                 "url": cls.url,
-                "oauth2_flow": "backend_application",
                 "content_type": "application/xml",
                 "oauth2_clientid": "some_client_id",
                 "oauth2_client_secret": "shh_secret",
@@ -47,7 +45,7 @@ class TestWebService(CommonWebService):
 
     def test_get_adapter_protocol(self):
         protocol = self.webservice._get_adapter_protocol()
-        self.assertEqual(protocol, "http+oauth2-backend_application")
+        self.assertEqual(protocol, "http+oauth2")
 
     @responses.activate
     def test_fetch_token(self):
@@ -67,7 +65,7 @@ class TestWebService(CommonWebService):
 
         with mock_cursor(self.env.cr):
             result = self.webservice.call("get", url=f"{self.url}endpoint")
-        self.webservice.invalidate_recordset()
+        self.webservice.refresh()
         self.assertTrue("cool_token" in self.webservice.oauth2_token)
         self.assertEqual(result, b"OK")
 
@@ -101,7 +99,7 @@ class TestWebService(CommonWebService):
             result = self.webservice.call("get", url=f"{self.url}endpoint")
             self.env.cr.commit.assert_called_once_with()  # one call with no args
 
-        self.webservice.invalidate_recordset()
+        self.webservice.refresh()
         self.assertTrue("cool_token" in self.webservice.oauth2_token)
         self.assertEqual(result, b"OK")
 
@@ -135,5 +133,5 @@ class TestWebService(CommonWebService):
             self.env.cr.commit.assert_not_called()
             self.env.cr.close.assert_called_once_with()  # one call with no args
 
-        self.webservice.invalidate_recordset()
+        self.webservice.refresh()
         self.assertTrue("old_token" in self.webservice.oauth2_token)

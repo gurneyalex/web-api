@@ -7,7 +7,7 @@ import json
 import time
 
 import requests
-from oauthlib.oauth2 import BackendApplicationClient, WebApplicationClient
+from oauthlib.oauth2 import BackendApplicationClient
 from requests_oauthlib import OAuth2Session
 
 from odoo.addons.component.core import Component
@@ -72,13 +72,10 @@ class BaseRestRequestsAdapter(Component):
         return url.format(**url_params)
 
 
-class BackendApplicationOAuth2RestRequestsAdapter(Component):
-    _name = "oauth2.requests.backend.application"
-    _webservice_protocol = "http+oauth2-backend_application"
+class OAuth2RestRequestsAdapter(Component):
+    _name = "oauth2.requests"
+    _webservice_protocol = "http+oauth2"
     _inherit = "base.requests"
-
-    def get_client(self, oauth_params: dict):
-        return BackendApplicationClient(client_id=oauth_params["oauth2_clientid"])
 
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
@@ -138,7 +135,7 @@ class BackendApplicationOAuth2RestRequestsAdapter(Component):
                 "oauth2_audience",
             ]
         )[0]
-        client = self.get_client(oauth_params)
+        client = BackendApplicationClient(client_id=oauth_params["oauth2_clientid"])
         with OAuth2Session(client=client) as session:
             token = session.fetch_token(
                 token_url=oauth_params["oauth2_token_url"],
@@ -163,58 +160,3 @@ class BackendApplicationOAuth2RestRequestsAdapter(Component):
             request = session.request(method, url, **new_kwargs)
             request.raise_for_status()
             return request.content
-
-
-class WebApplicationOAuth2RestRequestsAdapter(Component):
-    _name = "oauth2.requests.web.application"
-    _webservice_protocol = "http+oauth2-authorization_code"
-    _inherit = "oauth2.requests.backend.application"
-
-    def get_client(self, oauth_params: dict):
-        return WebApplicationClient(
-            client_id=oauth_params["oauth2_clientid"],
-            code=oauth_params.get("oauth2_autorization"),
-            redirect_uri=oauth_params["oauth2_re"],
-        )
-
-    def _fetch_token_from_authorization(self, authorization_code):
-
-        oauth_params = self.collection.sudo().read(
-            [
-                "oauth2_clientid",
-                "oauth2_client_secret",
-                "oauth2_token_url",
-                "oauth2_audience",
-                "oauth2_authorization",
-            ]
-        )[0]
-        client = WebApplicationClient(client_id=oauth_params["oauth2_clientid"])
-        with OAuth2Session(client=client) as session:
-            token = session.fetch_token(
-                token_url=oauth_params["oauth2_token_url"],
-                cliend_id=oauth_params["oauth2_clientid"],
-                client_secret=oauth_params["oauth2_client_secret"],
-                audience=oauth_params.get("oauth2_audience") or "",
-            )
-        return token
-
-    def redirect_to_authorize(self, **authorization_url_extra_params):
-        # we are normally authenticated at this stage, so no need to sudo()
-        backend = self.collection
-        oauth_params = backend.read(
-            [
-                "oauth2_clientid",
-                "oauth2_client_secret",
-                "oauth2_token_url",
-                "oauth2_audience",
-                "oauth2_authorization",
-            ]
-        )[0]
-        client = WebApplicationClient(client_id=oauth_params["oauth2_clientid"])
-
-        with OAuth2Session(client=client) as session:
-            authorization_url, state = session.authorization_url(
-                backend.oauth2_authorization_url, **authorization_url_extra_params
-            )
-            backend.oauth2_state = state
-            return authorization_url
